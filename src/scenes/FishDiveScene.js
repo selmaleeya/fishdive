@@ -11,10 +11,11 @@ export default class FishDiveScene extends Phaser.Scene{
     init(){
         this.catch = false;
         this.diver = undefined;
-        this.speed = 60;
+        this.speed = 80;
         this.cursors = undefined;
-        this.fishes = undefined;
-        this.fishesSpeed = 50;
+        this.fish = undefined;
+        this.fishSpeed = 50;
+        this.bombSpeed = 20;
         this.scoreLabel = undefined;
         this.lifeLabel = undefined;
     }
@@ -24,10 +25,7 @@ export default class FishDiveScene extends Phaser.Scene{
         this.load.image("diver", "images/diver.png");
         this.load.image("bomb", "images/bomb.png");
         this.load.image("net", "images/net.png");
-        this.load.spritesheet("fishes", "images/fishes.png", {
-            frameWidth: 100,
-            frameHeight: 100,
-        });
+        this.load.image("fish", "images/fish.png");
     }
 
     create(){
@@ -36,21 +34,55 @@ export default class FishDiveScene extends Phaser.Scene{
         this.add.image(gameWidth, gameHeight, "background");
 
         this.diver = this.createDiver(50, 100, "diver", {
-            width: 160,
-            height: 75,
+            width: 220,
+            height: 100,
         });
 
         this.cursors = this.input.keyboard.createCursorKeys();
 
         this.fishes = this.physics.add.group({
             classType: FallingFishes,
-            maxSize: 10,
+            maxSize: 15,
             runChildUpdate: true,
         });
+        this.time.addEvent({
+            delay: 2000,
+            callback: this.spawnFish,
+            callbackScope: this,
+            loop: true,
+        });
+
+        this.bombs = this.physics.add.group({
+            classType: FallingFishes,
+            maxSize: 5,
+            runChildUpdate: true,
+        });
+        this.time.addEvent({
+            delay: 4000,
+            callback: this.spawnBomb,
+            callbackScope: this,
+            loop: true,
+        });
+
+        this.physics.add.overlap(
+            this.diver,
+            this.fishes,
+            this.hitFish,
+            undefined,
+            this
+        );
 
         this.scoreLabel = this.createScoreLabel(16, 16, 0);
 
         this.lifeLabel = this.createLifeLabel(16, 32, 3);
+
+        this.physics.add.overlap(
+            this.diver,
+            this.bombs,
+            this.decreaseLife,
+            null,
+            this
+        );
     }
 
     update(time){
@@ -88,23 +120,39 @@ export default class FishDiveScene extends Phaser.Scene{
           }
     }
 
-    spawnFishes(){
+    spawnFish(){
         const config = {
-            speed: this.fishesSpeed,
+            speed: this.fishSpeed,
         };
-        const fishes = this.fishes.get(0, 0, "fishes", config);
-        const fishesWidth = fishes.displayWidth;
+        const fish = this.fishes.get(0, 0, "fish", config);
+        const fishWidth = fish.displayWidth;
         const positionY = Phaser.Math.Between(
-            fishesWidth,
-            this.scale.width - fishesWidth
+            fishWidth,
+            this.scale.width - fishWidth
         );
-        if(fishes){
-            fishes.spawn(positionY);
+        if(fish){
+            fish.spawn(positionY);
         }
     }
 
-    catchFishes(net, fishes){
+    spawnBomb(){
+        const config = {
+            speed: this.bombSpeed,
+        };
+        const bomb = this.bombs.get(0, 0, "bomb", config);
+        const bombWidth = bomb.displayWidth;
+        const positionY = Phaser.Math.Between(
+            bombWidth,
+            this.scale.width - bombWidth
+        );
+        if(bomb){
+            bomb.spawn(positionY);
+        }
+    }
 
+    hitFish(diver, fish){
+        fish.die();
+        this.scoreLabel.add(1);
     }
 
     createScoreLabel(x, y, score){
@@ -121,7 +169,17 @@ export default class FishDiveScene extends Phaser.Scene{
         return label;
     }
 
-    decreaseLife(diver, fishes){
-
+    decreaseLife(diver, bomb){
+        bomb.die();
+        this.lifeLabel.subtract(1);
+        if (this.lifeLabel.getLife() == 2) {
+            diver.setTint(0xff0000);
+        } else if (this.lifeLabel.getLife() == 1) {
+            diver.setTint(0xff0000).setAlpha(0.2);
+        } else if (this.lifeLabel.getLife() == 0) {
+            this.scene.start("game-over-scene", {
+                score: this.scoreLabel.getScore(),
+            });
+        }
     }
 }
